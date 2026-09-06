@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import re
+import subprocess
+from gradelib import *
+
+r = Runner(save("xv6.out"))
+
+@test(0, "running nettests")
+def test_nettest():
+    import os, signal, time
+    logfile = open('/tmp/net_server.log', 'w')
+    server = subprocess.Popen(["make", "server"], stdout=logfile, stderr=logfile, preexec_fn=os.setsid)
+    time.sleep(2)
+    r.run_qemu(shell_script([
+        'nettests'
+    ]), timeout=30)
+    try:
+        os.killpg(os.getpgid(server.pid), signal.SIGTERM)
+        server.wait(timeout=5)
+    except Exception:
+        try:
+            os.killpg(os.getpgid(server.pid), signal.SIGKILL)
+        except Exception:
+            pass
+    logfile.close()
+
+@test(40, "nettest: ping", parent=test_nettest)
+def test_nettest_():
+    r.match('^testing ping: OK$')
+
+@test(20, "nettest: single process", parent=test_nettest)
+def test_nettest_():
+    r.match('^testing single-process pings: OK$')
+
+@test(20, "nettest: multi-process", parent=test_nettest)
+def test_nettest_fork_test():
+    r.match('^testing multi-process pings: OK$')
+
+@test(19, "nettest: DNS", parent=test_nettest)
+def test_nettest_dns_test():
+    r.match('^DNS OK$')
+
+#@test(10, "answers-net.txt")
+#def test_answers():
+#    # just a simple sanity check, will be graded manually
+#    check_answers("answers-net.txt")
+
+@test(1, "time")
+def test_time():
+    check_time()
+
+run_tests()
